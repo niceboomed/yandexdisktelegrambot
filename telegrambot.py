@@ -87,11 +87,11 @@ def handle_file(message):
 def catalog_command(message):
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     markup.add("Отмена")
+    markup.add("Корневой каталог")
     try:
         folders = y.listdir("/")
         for folder in folders:
             markup.add(folder['name'])
-        markup.add("Корневой каталог")
     except Exception as e:
         logging.error(f"Произошла ошибка при получении списка папок: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка при получении списка папок. Попробуйте позже.")
