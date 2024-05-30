@@ -96,7 +96,7 @@ def catalog_command(message):
         logging.error(f"Произошла ошибка при получении списка папок: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка при получении списка папок. Попробуйте позже.")
         return
-    msg = bot.send_message(message.chat.id, "Выберите папку:", reply_markup=markup)
+    msg = bot.send_message(message.chat.id, "Выберите папку или напишите название новой:", reply_markup=markup)
     bot.register_next_step_handler(msg, process_catalog_choice)
 
 
