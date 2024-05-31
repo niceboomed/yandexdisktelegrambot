@@ -196,6 +196,7 @@ def process_catalog_choice(message):
     bot.send_message(message.chat.id, "Теперь отправьте файл, который вы хотите загрузить в эту папку.")
     return_to_main_menu(message.chat.id)
 
+
 # --- Обработчик команды /search ---
 @bot.message_handler(commands=['search'])
 def search_command(message):
@@ -204,97 +205,83 @@ def search_command(message):
     folder = user_settings[user_id]['folder']
 
     if storage == 'yadisk':
-        # --- Логика поиска на Яндекс Диске ---
-        if folder:
-            msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
-            bot.register_next_step_handler(msg, process_search_yadisk)
-        else:
-            markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-            markup.add("Да", "Нет")
-            msg = bot.send_message(message.chat.id, "Вы не выбрали каталог для поиска файлов. Хотите выполнить поиск в корневом каталоге?", reply_markup=markup)
-            bot.register_next_step_handler(msg, process_root_search_yadisk)
+        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
+        bot.register_next_step_handler(msg, process_search_yadisk)
 
     elif storage == 'ftp':
-        # --- Логика поиска на FTP-сервере ---
-        if folder:
-            msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
-            bot.register_next_step_handler(msg, process_search_ftp)
-        else:
-            markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-            markup.add("Да", "Нет")
-            msg = bot.send_message(message.chat.id, "Вы не выбрали каталог для поиска файлов. Хотите выполнить поиск в корневом каталоге?", reply_markup=markup)
-            bot.register_next_step_handler(msg, process_root_search_ftp)
+        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска везде:")
+        bot.register_next_step_handler(msg, process_search_ftp)
 
     else:
         bot.send_message(user_id, "Ошибка: не выбран способ хранения.")
         return_to_main_menu(user_id)
 
-def process_root_search_yadisk(message):
-    if message.text.lower() == "да":
-        user_settings[message.chat.id]['folder'] = ""
-        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
-        bot.register_next_step_handler(msg, process_search_yadisk)
-    else:
-        bot.send_message(message.chat.id, "Ок, выполнение поиска отменено.")
-        return_to_main_menu(message.chat.id)
-
-def process_root_search_ftp(message):
-    if message.text.lower() == "да":
-        user_settings[message.chat.id]['folder'] = ""
-        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
-        bot.register_next_step_handler(msg, process_search_ftp)
-    else:
-        bot.send_message(message.chat.id, "Ок, выполнение поиска отменено.")
-        return_to_main_menu(message.chat.id)
-
+# Добавляем новую функцию для поиска файла на Яндекс Диске
 def process_search_yadisk(message):
     query = message.text
     user_id = message.chat.id
-    folder = user_settings[user_id]['folder']
 
     try:
-        if not folder:
-            files = y.listdir("/")
-        else:
-            files = y.listdir(f"/{folder}")
-
-        search_results = [file for file in files if query.lower() in file["name"].lower()]
-
+        search_path = user_settings[user_id]['folder']
+        search_results = search_yadisk_recursive(search_path, query)
         if search_results:
-            if len(search_results) == 1:
-                file = search_results[0]
-                direct_link = y.get_download_link(file["path"])
-                bot.send_message(message.chat.id, f"Найден файл: {direct_link}")
-            else:
-                file_list = "\n".join([f"- {file['name']} ({file['path']})" for file in search_results])
-                bot.send_message(message.chat.id, f"Найдено несколько файлов:\n{file_list}")
+            response_text = "Найдены файлы:\n"
+            for file in search_results:
+                path = file["path"]
+                download_link = y.get_download_link(path)
+                response_text += f"- {file['name']} ({path})\nСсылка: {download_link}\n\n"
+            bot.send_message(user_id, response_text)
         else:
-            bot.send_message(message.chat.id, "Файлы не найдены.")
+            bot.send_message(user_id, "Файлы не найдены.")
     except Exception as e:
-        logging.error(f"Произошла ошибка при поиске файлов: {e}")
-        bot.send_message(message.chat.id, f"Произошла ошибка при поиске файлов. Попробуйте позже.")
+        logging.error(f"Произошла ошибка при поиске файлов на Яндекс Диске: {e}")
+        bot.send_message(user_id, f"Произошла ошибка при поиске файлов на Яндекс Диске. Попробуйте позже.")
     return_to_main_menu(user_id)
 
+# Функция для рекурсивного поиска на Яндекс Диске
+def search_yadisk_recursive(folder, query):
+    all_files = []
+    files = y.listdir(folder)
+    for file in files:
+        if file['type'] == 'dir':
+            all_files.extend(search_yadisk_recursive(file['path'], query))
+        elif query.lower() in file['name'].lower():
+            all_files.append(file)
+    return all_files
+
+# Добавляем новую функцию для поиска файла на FTP
 def process_search_ftp(message):
     query = message.text
     user_id = message.chat.id
-    folder = user_settings[user_id]['folder']
 
     try:
         with ftplib.FTP(FTP_HOST, FTP_USER, FTP_PASSWORD) as ftp:
-            if folder:
-                ftp.cwd(folder)  # Переход в папку, если она указана
-            files = ftp.nlst()
-            search_results = [file for file in files if query.lower() in file.lower()]
+            search_results = search_ftp_recursive(ftp, query)
 
             if search_results:
-                bot.send_message(message.chat.id, f"Найдены файлы: {', '.join(search_results)}")
+                for file in search_results:
+                    file_name = file.split("/")[-1]  # Получаем имя файла с расширением
+                    with io.BytesIO() as file_data:
+                        ftp.retrbinary(f"RETR {file}", file_data.write)
+                        file_data.seek(0)
+                        bot.send_document(user_id, file_data, caption=file_name)
             else:
                 bot.send_message(message.chat.id, "Файлы не найдены.")
     except Exception as e:
         logging.error(f"Произошла ошибка при поиске файлов на FTP: {e}")
         bot.send_message(message.chat.id, f"Произошла ошибка при поиске файлов на FTP. Попробуйте позже.")
     return_to_main_menu(user_id)
+
+# Функция для рекурсивного поиска на FTP
+def search_ftp_recursive(ftp, query, folder="/"):
+    all_files = []
+    files = ftp.nlst(folder)
+    for file in files:
+        if "." not in file:  # if it's a folder
+            all_files.extend(search_ftp_recursive(ftp, query, f"{folder}/{file}"))
+        elif query.lower() in file.lower():
+            all_files.append(f"{folder}/{file}")
+    return all_files
 
 # --- Обработчик команды /faq ---
 @bot.message_handler(commands=['faq'])
