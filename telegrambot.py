@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Токены Telegram бота и Яндекс Диска
 TELEGRAM_TOKEN = ""
-YANDEX_TOKEN = ""
+YANDEX_TOKEN = "y0_AgAAAAB2YTQOAAvg-gAAAAEGMWnBAADSDxQkRe9G26U9eFNwYpGfSYY7NQ"
 
 # Создание экземпляра Yandex.Disk API
 y = yadisk.YaDisk(token=YANDEX_TOKEN)
@@ -45,7 +45,7 @@ def start_command(message):
 
 def process_folder_choice(message):
     if message.text is None:
-        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите каталог.")
+        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
         return start_command(message)
     
     folder = message.text.strip()
@@ -148,8 +148,10 @@ def process_root_search(message):
         user_folders[message.chat.id] = ""  # Пустая строка означает корневой каталог
         msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
         bot.register_next_step_handler(msg, process_search)
+        return_to_main_menu(message.chat.id) 
     else:
         bot.send_message(message.chat.id, "Ок, выполнение поиска отменено.")
+        return_to_main_menu(message.chat.id) 
 
 def process_search(message):
     query = message.text
