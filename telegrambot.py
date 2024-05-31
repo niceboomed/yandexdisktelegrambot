@@ -91,14 +91,14 @@ def catalog_command(message):
     try:
         folders = y.listdir("/")
         for folder in folders:
-            markup.add(folder['name'])
+            if folder['type'] == 'dir':  # Проверка, что элемент является папкой
+                markup.add(folder['name'])
     except Exception as e:
         logging.error(f"Произошла ошибка при получении списка папок: {e}")
         bot.send_message(message.chat.id, "Произошла ошибка при получении списка папок. Попробуйте позже.")
         return
     msg = bot.send_message(message.chat.id, "Выберите папку или напишите название новой:", reply_markup=markup)
     bot.register_next_step_handler(msg, process_catalog_choice)
-
 
 def process_catalog_choice(message):
     folder = message.text.strip()
@@ -111,7 +111,6 @@ def process_catalog_choice(message):
         user_folders[message.chat.id] = folder
     bot.send_message(message.chat.id, f"Выбран каталог: {folder}")
     bot.send_message(message.chat.id, "Теперь отправьте файл, который вы хотите загрузить в эту папку.")
-
 
 
 # --- Обработчик команды /search ---
