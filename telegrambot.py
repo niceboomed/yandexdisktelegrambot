@@ -45,7 +45,7 @@ def start_command(message):
 
 def process_folder_choice(message):
     if message.text is None:
-        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
+        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите каталог.")
         return start_command(message)
     
     folder = message.text.strip()
