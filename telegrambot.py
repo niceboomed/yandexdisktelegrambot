@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import os
 from datetime import datetime
 import io
@@ -27,6 +27,12 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 # Словарь для хранения выбранных пользователем папок для загрузки файлов
 user_folders = {}
 
+# Функция для возврата в главное меню
+def return_to_main_menu(chat_id):
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+    markup.row("🔍 Поиск", "📁 Каталог")
+    markup.row("❓ FAQ")
+    bot.send_message(chat_id, "Возвращаем кнопки.", reply_markup=markup)
 
 # --- Обработчик команды /start ---
 @bot.message_handler(commands=['start'])
@@ -37,8 +43,11 @@ def start_command(message):
     msg = bot.send_message(message.chat.id, "Привет! Я бот для сохранения файлов на Яндекс Диск.", reply_markup=markup)
     bot.register_next_step_handler(msg, process_folder_choice)
 
-
 def process_folder_choice(message):
+    if message.text is None:
+        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
+        return start_command(message)
+    
     folder = message.text.strip()
     if folder == "🔍 Поиск":
         search_command(message)
@@ -59,12 +68,11 @@ def handle_file(message):
     file_info = bot.get_file(file_id)
     file_name = message.document.file_name
 
-    folder = user_folders.get(user_id)
-
+    folder = user_folders.get(user_id, "")  # По умолчанию используется корневой каталог
 
     try:
         # Проверяем существование папки на Яндекс Диске (для корневого каталога не нужно)
-        if folder and not y.exists(f"/{folder}"): 
+        if folder and not y.exists(f"/{folder}"):
             y.mkdir(f"/{folder}")
 
         # Загрузка файла на Яндекс Диск
@@ -72,15 +80,18 @@ def handle_file(message):
         
         # Строим правильный путь для корневого каталога и подкаталогов
         if folder:
-            upload_path = f"/{folder}/{file_name}" 
+            upload_path = f"/{folder}/{file_name}"
         else:
             upload_path = file_name  # Только имя файла для корневого каталога
 
         y.upload(io.BytesIO(file_data), upload_path)
         bot.send_message(user_id, f"Файл '{file_name}' успешно сохранен в {'корневом каталоге' if not folder else f'папке \'{folder}\''} на Яндекс Диск.")
+    
     except Exception as e:
         logging.error(f"Произошла ошибка при сохранении файла: {e}")
         bot.send_message(user_id, f"Произошла ошибка при сохранении файла. Попробуйте позже.")
+    
+    return_to_main_menu(user_id)  # Возврат в главное меню
 
 # --- Обработчик команды /catalog ---
 @bot.message_handler(commands=['catalog'])
@@ -101,6 +112,10 @@ def catalog_command(message):
     bot.register_next_step_handler(msg, process_catalog_choice)
 
 def process_catalog_choice(message):
+    if message.text is None:
+        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
+        return catalog_command(message)
+
     folder = message.text.strip()
     if folder == "Отмена":
         start_command(message)  # Возвращаемся к начальному состоянию
@@ -111,7 +126,7 @@ def process_catalog_choice(message):
         user_folders[message.chat.id] = folder
     bot.send_message(message.chat.id, f"Выбран каталог: {folder}")
     bot.send_message(message.chat.id, "Теперь отправьте файл, который вы хотите загрузить в эту папку.")
-
+    return_to_main_menu(message.chat.id)  # Возврат в главное меню
 
 # --- Обработчик команды /search ---
 @bot.message_handler(commands=['search'])
@@ -131,10 +146,10 @@ def search_command(message):
 def process_root_search(message):
     if message.text.lower() == "да":
         user_folders[message.chat.id] = ""  # Пустая строка означает корневой каталог
-        process_search(message)  # Запускаем поиск
+        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
+        bot.register_next_step_handler(msg, process_search)
     else:
         bot.send_message(message.chat.id, "Ок, выполнение поиска отменено.")
-
 
 def process_search(message):
     query = message.text
@@ -166,7 +181,6 @@ def process_search(message):
         logging.error(f"Произошла ошибка при поиске файлов: {e}")
         bot.send_message(message.chat.id, f"Произошла ошибка при поиске файлов. Попробуйте позже.")
 
-
 # --- Обработчик команды /faq ---
 @bot.message_handler(commands=['faq'])
 def faq_command(message):
@@ -179,11 +193,10 @@ def faq_command(message):
     Ответ: Используйте команду /search, чтобы выполнить поиск по файлам в выбранной папке.
     
     3. Как изменить текущий каталог для загрузки файлов?
-    Ответ: Используйте команду /catalog, чтобы выб
-рать другой каталог.
+    Ответ: Используйте команду /catalog, чтобы выбрать другой каталог.
     """
     bot.send_message(message.chat.id, faq_text)
-
+    return_to_main_menu(message.chat.id)  # Возврат в главное меню
 
 # --- Запуск бота ---
 if __name__ == '__main__':
