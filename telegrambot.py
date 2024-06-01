@@ -12,10 +12,10 @@ import ftplib
 logging.basicConfig(level=logging.INFO)
 
 # Токены Telegram бота и Яндекс Диска
-TELEGRAM_TOKEN = ""
+TELEGRAM_TOKEN = "7037443488:AAFLQSuZPQlIeAihHlYUkg1iFv4FO3zFxnw"
 YANDEX_TOKEN = "y0_AgAAAAB2YTQOAAvg-gAAAAEGMWnBAADSDxQkRe9G26U9eFNwYpGfSYY7NQ"
 
-# Данные для FTP-сервера (заполните свои)
+# Данные для FTP-сервера 
 FTP_HOST = "94.26.225.26"
 FTP_USER = "FTP"
 FTP_PASSWORD = "parolnaftp"
@@ -71,7 +71,7 @@ def handle_text(message):
 # --- Обработчик команды /settings ---
 @bot.message_handler(commands=['settings'])
 def settings_command(message):
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
+    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.row("Яндекс Диск", "FTP")
     msg = bot.send_message(message.chat.id, "Выберите место для хранения файлов:", reply_markup=markup)
     bot.register_next_step_handler(msg, process_storage_choice)
@@ -82,12 +82,20 @@ def process_storage_choice(message):
         return settings_command(message)
 
     storage = message.text.strip()
+    current_storage = user_settings.get(message.chat.id, {}).get('storage')
+
     if storage == "Яндекс Диск":
-        user_settings[message.chat.id]['storage'] = 'yadisk'
-        bot.send_message(message.chat.id, "Хранилище установлено: Яндекс Диск")
+        if current_storage == 'yadisk':
+            bot.send_message(message.chat.id, "Вы уже используете Яндекс Диск в качестве хранилища.")
+        else:
+            user_settings[message.chat.id]['storage'] = 'yadisk'
+            bot.send_message(message.chat.id, "Хранилище установлено: Яндекс Диск")
     elif storage == "FTP":
-        user_settings[message.chat.id]['storage'] = 'ftp'
-        bot.send_message(message.chat.id, "Хранилище установлено: FTP")
+        if current_storage == 'ftp':
+            bot.send_message(message.chat.id, "Вы уже используете FTP в качестве хранилища.")
+        else:
+            user_settings[message.chat.id]['storage'] = 'ftp'
+            bot.send_message(message.chat.id, "Хранилище установлено: FTP")
     else:
         bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
         return settings_command(message)
@@ -216,7 +224,7 @@ def search_command(message):
         bot.send_message(user_id, "Ошибка: не выбран способ хранения.")
         return_to_main_menu(user_id)
 
-# Добавляем новую функцию для поиска файла на Яндекс Диске
+# Поиска файла на Яндекс Диске
 def process_search_yadisk(message):
     query = message.text
     user_id = message.chat.id
@@ -238,7 +246,7 @@ def process_search_yadisk(message):
         bot.send_message(user_id, f"Произошла ошибка при поиске файлов на Яндекс Диске. Попробуйте позже.")
     return_to_main_menu(user_id)
 
-# Функция для рекурсивного поиска на Яндекс Диске
+# Рекурсивный поиск на Яндекс Диске
 def search_yadisk_recursive(folder, query):
     all_files = []
     files = y.listdir(folder)
@@ -249,7 +257,7 @@ def search_yadisk_recursive(folder, query):
             all_files.append(file)
     return all_files
 
-# Добавляем новую функцию для поиска файла на FTP
+# Функция для поиска файла на FTP
 def process_search_ftp(message):
     query = message.text
     user_id = message.chat.id
@@ -264,7 +272,9 @@ def process_search_ftp(message):
                     with io.BytesIO() as file_data:
                         ftp.retrbinary(f"RETR {file}", file_data.write)
                         file_data.seek(0)
-                        bot.send_document(user_id, file_data, caption=file_name)
+                        with open(file_name, 'wb') as f:
+                            f.write(file_data.getvalue())
+                        bot.send_document(user_id, open(file_name, 'rb'))
             else:
                 bot.send_message(message.chat.id, "Файлы не найдены.")
     except Exception as e:
