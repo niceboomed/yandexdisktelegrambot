@@ -30,7 +30,8 @@ if not y.check_token():
 # Создание бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# Словарь для хранения выбранных пользователем параметров
+
+# Словарь для хранения настроек пользователей
 user_settings = {}
 
 # --- Функция для возврата в главное меню ---
@@ -77,30 +78,31 @@ def settings_command(message):
     bot.register_next_step_handler(msg, process_storage_choice)
 
 def process_storage_choice(message):
+    chat_id = message.chat.id
     if message.text is None:
-        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
+        bot.send_message(chat_id, "Некорректный выбор. Пожалуйста, выберите заново.")
         return settings_command(message)
 
     storage = message.text.strip()
-    current_storage = user_settings.get(message.chat.id, {}).get('storage')
+    current_storage = user_settings.get(chat_id, {}).get('storage')
 
     if storage == "Яндекс Диск":
         if current_storage == 'yadisk':
-            bot.send_message(message.chat.id, "Вы уже используете Яндекс Диск в качестве хранилища.")
+            bot.send_message(chat_id, "Вы уже используете Яндекс Диск в качестве хранилища.")
         else:
-            user_settings[message.chat.id]['storage'] = 'yadisk'
-            bot.send_message(message.chat.id, "Хранилище установлено: Яндекс Диск")
+            user_settings[chat_id]['storage'] = 'yadisk'
+            bot.send_message(chat_id, "Хранилище установлено: Яндекс Диск")
     elif storage == "FTP":
         if current_storage == 'ftp':
-            bot.send_message(message.chat.id, "Вы уже используете FTP в качестве хранилища.")
+            bot.send_message(chat_id, "Вы уже используете FTP в качестве хранилища.")
         else:
-            user_settings[message.chat.id]['storage'] = 'ftp'
-            bot.send_message(message.chat.id, "Хранилище установлено: FTP")
+            user_settings[chat_id]['storage'] = 'ftp'
+            bot.send_message(chat_id, "Хранилище установлено: FTP")
     else:
-        bot.send_message(message.chat.id, "Некорректный выбор. Пожалуйста, выберите заново.")
+        bot.send_message(chat_id, "Некорректный выбор. Пожалуйста, выберите заново.")
         return settings_command(message)
 
-    return_to_main_menu(message.chat.id)
+    return_to_main_menu(chat_id)
 
 # --- Обработчик любого файла ---
 @bot.message_handler(content_types=['document'])
