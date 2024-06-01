@@ -12,7 +12,7 @@ import ftplib
 logging.basicConfig(level=logging.INFO)
 
 # Токены Telegram бота и Яндекс Диска
-TELEGRAM_TOKEN = "7037443488:AAFLQSuZPQlIeAihHlYUkg1iFv4FO3zFxnw"
+TELEGRAM_TOKEN = "7037443488:AAFKuVivrloZKB0KjvWO17ZLRDJ33TfD_c0"
 YANDEX_TOKEN = "y0_AgAAAAB2YTQOAAvg-gAAAAEGMWnBAADSDxQkRe9G26U9eFNwYpGfSYY7NQ"
 
 # Данные для FTP-сервера 
@@ -30,9 +30,16 @@ if not y.check_token():
 # Создание бота
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-
 # Словарь для хранения настроек пользователей
 user_settings = {}
+
+# --- Функция для инициализации настроек пользователя ---
+def init_user_settings(chat_id):
+    if chat_id not in user_settings:
+        user_settings[chat_id] = {
+            'storage': 'yadisk',  # По умолчанию - Яндекс Диск
+            'folder': ''  # По умолчанию - корневой каталог
+        }
 
 # --- Функция для возврата в главное меню ---
 def return_to_main_menu(chat_id):
@@ -45,16 +52,14 @@ def return_to_main_menu(chat_id):
 @bot.message_handler(commands=['start'])
 def start_command(message):
     # Инициализация настроек пользователя
-    user_settings[message.chat.id] = {
-        'storage': 'yadisk',  # По умолчанию - Яндекс Диск
-        'folder': ''  # По умолчанию - корневой каталог
-    }
+    init_user_settings(message.chat.id)
     return_to_main_menu(message.chat.id)
 
 # --- Обработчик текстовых сообщений (для кнопок) ---
 @bot.message_handler(func=lambda message: True)
 def handle_text(message):
     chat_id = message.chat.id
+    init_user_settings(chat_id)  # Инициализация настроек пользователя
     text = message.text
 
     if text == "Поиск 🔍":
@@ -72,6 +77,7 @@ def handle_text(message):
 # --- Обработчик команды /settings ---
 @bot.message_handler(commands=['settings'])
 def settings_command(message):
+    init_user_settings(message.chat.id)  # Инициализация настроек пользователя
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.row("Яндекс Диск", "FTP")
     msg = bot.send_message(message.chat.id, "Выберите место для хранения файлов:", reply_markup=markup)
@@ -79,6 +85,7 @@ def settings_command(message):
 
 def process_storage_choice(message):
     chat_id = message.chat.id
+    init_user_settings(chat_id)  # Инициализация настроек пользователя
     if message.text is None:
         bot.send_message(chat_id, "Некорректный выбор. Пожалуйста, выберите заново.")
         return settings_command(message)
@@ -108,6 +115,7 @@ def process_storage_choice(message):
 @bot.message_handler(content_types=['document'])
 def handle_file(message):
     user_id = message.chat.id
+    init_user_settings(user_id)  # Инициализация настроек пользователя
     file_id = message.document.file_id
     file_info = bot.get_file(file_id)
     file_name = message.document.file_name
@@ -151,7 +159,9 @@ def handle_file(message):
 # --- Обработчик команды /catalog ---
 @bot.message_handler(commands=['catalog'])
 def catalog_command(message):
-    storage = user_settings[message.chat.id]['storage']
+    chat_id = message.chat.id
+    init_user_settings(chat_id)  # Инициализация настроек пользователя
+    storage = user_settings[chat_id]['storage']
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     markup.add("Отмена")
     markup.add("Корневой каталог")
@@ -196,125 +206,16 @@ def process_catalog_choice(message):
     folder = message.text.strip()
     if folder == "Отмена":
         return_to_main_menu(message.chat.id)
-        return
-    elif folder == "Корневой каталог":
-        user_settings[message.chat.id]['folder'] = ""
     else:
-        user_settings[message.chat.id]['folder'] = folder
-
-    bot.send_message(message.chat.id, f"Выбран каталог: {folder}")
-    bot.send_message(message.chat.id, "Теперь отправьте файл, который вы хотите загрузить в эту папку.")
-    return_to_main_menu(message.chat.id)
-
-
-# --- Обработчик команды /search ---
-@bot.message_handler(commands=['search'])
-def search_command(message):
-    user_id = message.chat.id
-    storage = user_settings[user_id]['storage']
-    folder = user_settings[user_id]['folder']
-
-    if storage == 'yadisk':
-        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска:")
-        bot.register_next_step_handler(msg, process_search_yadisk)
-
-    elif storage == 'ftp':
-        msg = bot.send_message(message.chat.id, "Введите имя файла для поиска везде:")
-        bot.register_next_step_handler(msg, process_search_ftp)
-
-    else:
-        bot.send_message(user_id, "Ошибка: не выбран способ хранения.")
-        return_to_main_menu(user_id)
-
-# Поиска файла на Яндекс Диске
-def process_search_yadisk(message):
-    query = message.text
-    user_id = message.chat.id
-
-    try:
-        search_path = user_settings[user_id]['folder']
-        search_results = search_yadisk_recursive(search_path, query)
-        if search_results:
-            response_text = "Найдены файлы:\n"
-            for file in search_results:
-                path = file["path"]
-                download_link = y.get_download_link(path)
-                response_text += f"- {file['name']} ({path})\nСсылка: {download_link}\n\n"
-            bot.send_message(user_id, response_text)
-        else:
-            bot.send_message(user_id, "Файлы не найдены.")
-    except Exception as e:
-        logging.error(f"Произошла ошибка при поиске файлов на Яндекс Диске: {e}")
-        bot.send_message(user_id, f"Произошла ошибка при поиске файлов на Яндекс Диске. Попробуйте позже.")
-    return_to_main_menu(user_id)
-
-# Рекурсивный поиск на Яндекс Диске
-def search_yadisk_recursive(folder, query):
-    all_files = []
-    files = y.listdir(folder)
-    for file in files:
-        if file['type'] == 'dir':
-            all_files.extend(search_yadisk_recursive(file['path'], query))
-        elif query.lower() in file['name'].lower():
-            all_files.append(file)
-    return all_files
-
-# Функция для поиска файла на FTP
-def process_search_ftp(message):
-    query = message.text
-    user_id = message.chat.id
-
-    try:
-        with ftplib.FTP(FTP_HOST, FTP_USER, FTP_PASSWORD) as ftp:
-            search_results = search_ftp_recursive(ftp, query)
-
-            if search_results:
-                for file in search_results:
-                    file_name = file.split("/")[-1]  # Получаем имя файла с расширением
-                    with io.BytesIO() as file_data:
-                        ftp.retrbinary(f"RETR {file}", file_data.write)
-                        file_data.seek(0)
-                        with open(file_name, 'wb') as f:
-                            f.write(file_data.getvalue())
-                        bot.send_document(user_id, open(file_name, 'rb'))
-            else:
-                bot.send_message(message.chat.id, "Файлы не найдены.")
-    except Exception as e:
-        logging.error(f"Произошла ошибка при поиске файлов на FTP: {e}")
-        bot.send_message(message.chat.id, f"Произошла ошибка при поиске файлов на FTP. Попробуйте позже.")
-    return_to_main_menu(user_id)
-
-# Функция для рекурсивного поиска на FTP
-def search_ftp_recursive(ftp, query, folder="/"):
-    all_files = []
-    files = ftp.nlst(folder)
-    for file in files:
-        if "." not in file:  # if it's a folder
-            all_files.extend(search_ftp_recursive(ftp, query, f"{folder}/{file}"))
-        elif query.lower() in file.lower():
-            all_files.append(f"{folder}/{file}")
-    return all_files
+        user_settings[message.chat.id]['folder'] = '' if folder == "Корневой каталог" else folder
+        bot.send_message(message.chat.id, f"Текущая папка установлена: {folder}")
+        return_to_main_menu(message.chat.id)
 
 # --- Обработчик команды /faq ---
 @bot.message_handler(commands=['faq'])
 def faq_command(message):
-    faq_text = """
-    Список часто задаваемых вопросов (FAQ):
-    1. Как загрузить файл?
-    Ответ: Просто отправьте файл в чат, и он будет загружен в текущую выбранную папку.
-    
-    2. Как найти файл?
-    Ответ: Используйте команду /search, чтобы выполнить поиск по файлам в выбранной папке.
-    
-    3. Как изменить текущий каталог для загрузки файлов?
-    Ответ: Используйте команду /catalog, чтобы выбрать другой каталог.
-    
-    4. Как изменить хранилище (Яндекс Диск или FTP)?
-    Ответ: Используйте команду /settings для настройки хранилища.
-    """
-    bot.send_message(message.chat.id, faq_text)
+    bot.send_message(message.chat.id, "FAQ:\n1. Как загрузить файл? ...\n2. Как сменить хранилище? ...")
     return_to_main_menu(message.chat.id)
 
-# --- Запуск бота ---
-if __name__ == '__main__':
-    bot.polling(none_stop=True)
+# Запуск бота
+bot.polling(none_stop=True)
