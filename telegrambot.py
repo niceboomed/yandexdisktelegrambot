@@ -12,13 +12,13 @@ import ftplib
 logging.basicConfig(level=logging.INFO)
 
 # Токены Telegram бота и Яндекс Диска
-TELEGRAM_TOKEN = "7037443488:AAFKuVivrloZKB0KjvWO17ZLRDJ33TfD_c0"
-YANDEX_TOKEN = "y0_AgAAAAB2YTQOAAvg-gAAAAEGMWnBAADSDxQkRe9G26U9eFNwYpGfSYY7NQ"
+TELEGRAM_TOKEN = ""
+YANDEX_TOKEN = ""
 
 # Данные для FTP-сервера 
-FTP_HOST = "94.26.225.26"
-FTP_USER = "FTP"
-FTP_PASSWORD = "parolnaftp"
+FTP_HOST = ""
+FTP_USER = ""
+FTP_PASSWORD = ""
 
 # Создание экземпляра Yandex.Disk API
 y = yadisk.YaDisk(token=YANDEX_TOKEN)
