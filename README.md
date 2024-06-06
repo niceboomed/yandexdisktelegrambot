@@ -24,7 +24,7 @@
 
 1. Клонируйте репозиторий:
     ```bash
-   clone https://github.com/niceboomed/corecrusaders.git
+   clone https://github.com/niceboomed/yandexdisktelegrambot.git
    cd corecrusaders
     ```
 
